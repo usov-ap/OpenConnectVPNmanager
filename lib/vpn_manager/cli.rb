@@ -113,6 +113,7 @@ module VPNManager
 
     desc "stats", "Показать статистику использования"
     def stats
+      @connection.update_traffic_stats if @connection.running?
       stats = @connection.stats
       puts stats.to_s
     end

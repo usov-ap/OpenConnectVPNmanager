@@ -11,6 +11,12 @@ module VPNManager
     def initialize
       @logger = VPNLogger.new
       @stats = Statistics.new
+
+      # Восстанавливаем session_start если VPN уже запущен
+      if running? && @stats.instance_variable_get(:@session_start).nil?
+        @stats.instance_variable_set(:@session_start, @stats.last_connection || Time.now)
+        @stats.save_stats
+      end
     end
 
     # Проверяет, запущен ли VPN
@@ -130,6 +136,9 @@ module VPNManager
         pid = read_pid
         uptime = @stats.current_session_duration
 
+        # Обновляем статистику передачи данных
+        update_traffic_stats
+
         {
           running: true,
           pid: pid,
@@ -139,6 +148,37 @@ module VPNManager
       else
         { running: false }
       end
+    end
+
+    # Обновляет статистику передачи данных (публичный метод)
+    def update_traffic_stats
+      interface = find_vpn_interface
+      return unless interface
+
+      rx_path = "/sys/class/net/#{interface}/statistics/rx_bytes"
+      tx_path = "/sys/class/net/#{interface}/statistics/tx_bytes"
+
+      return unless File.exist?(rx_path) && File.exist?(tx_path)
+
+      received = File.read(rx_path).strip.to_i
+      sent = File.read(tx_path).strip.to_i
+
+      # Сохраняем текущие значения для расчета дельты
+      @last_received ||= 0
+      @last_sent ||= 0
+
+      # Обновляем только если есть новые данные
+      if received > @last_received || sent > @last_sent
+        delta_received = received - @last_received
+        delta_sent = sent - @last_sent
+
+        @stats.update_data_transfer(sent: delta_sent, received: delta_received)
+
+        @last_received = received
+        @last_sent = sent
+      end
+    rescue => e
+      @logger.error("Ошибка при обновлении статистики трафика: #{e.message}")
     end
 
     private
@@ -158,7 +198,6 @@ module VPNManager
           'sudo', 'openconnect',
           '--user', creds[:username],
           '--passwd-on-stdin',
-          '--background',
           creds[:server],
           in: password_file,
           out: log_path,
@@ -222,6 +261,11 @@ module VPNManager
         @monitor_thread = nil
         @logger.info("Монитор переподключения остановлен")
       end
+    end
+
+    # Определяет VPN интерфейс
+    def find_vpn_interface
+      Dir.glob('/sys/class/net/tun*').map { |path| File.basename(path) }.first
     end
   end
 end

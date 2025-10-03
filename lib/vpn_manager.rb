@@ -5,7 +5,7 @@ require_relative 'vpn_manager/statistics'
 require_relative 'vpn_manager/cli'
 
 module VPNManager
-  VERSION = '1.0.0'
+  VERSION = '1.0.1'
 
   CONFIG_DIR = File.join(Dir.home, '.vpn_manager')
   CREDENTIALS_FILE = File.join(CONFIG_DIR, 'credentials.enc')

@@ -24,7 +24,7 @@ module VPNManager
         @last_disconnect = data[:last_disconnect] ? Time.parse(data[:last_disconnect]) : nil
         @reconnect_count = data[:reconnect_count] || 0
         @data_transferred = data[:data_transferred] || { sent: 0, received: 0 }
-        @session_start = nil
+        @session_start = data[:session_start] ? Time.parse(data[:session_start]) : nil
       else
         reset_stats
       end
@@ -54,7 +54,8 @@ module VPNManager
         last_connection: @last_connection&.iso8601,
         last_disconnect: @last_disconnect&.iso8601,
         reconnect_count: @reconnect_count,
-        data_transferred: @data_transferred
+        data_transferred: @data_transferred,
+        session_start: @session_start&.iso8601
       }
       File.write(VPNManager::STATS_FILE, JSON.pretty_generate(data), mode: 'w', perm: 0600)
     end
